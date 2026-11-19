@@ -1,0 +1,59 @@
+# golangci-lint v2 configuration: the house style, enforced mechanically
+# where a linter can express it. Run with `make lint`.
+#
+# Rules no linter here expresses, kept for review: never `return` from inside
+# a loop (set the result, break, return at the end); comments describe how the
+# code works, one line per function.
+version: "2"
+
+run:
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - ineffassign
+    - unused
+    # No silent exception handling: every error is handled, including ones
+    # discarded with `_ =`.
+    - errcheck
+    # Descriptive names: no single-character identifiers.
+    - varnamelen
+    # process.env is read in exactly one place (core/config).
+    - forbidigo
+  settings:
+    staticcheck:
+      # The defaults, less QF1001 (apply De Morgan's law): `!(onScreen &&
+      # sameConversation)` reads better than its expansion.
+      checks: ["all", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", "-QF1001"]
+    errcheck:
+      check-blank: true
+      check-type-assertions: false
+    varnamelen:
+      min-name-length: 2
+      max-distance: 0
+      check-return: true
+      check-type-param: true
+      ignore-decls:
+        - t *testing.T
+        - b *testing.B
+    forbidigo:
+      forbid:
+        - pattern: ^os\.(Getenv|LookupEnv|Environ)$
+          msg: read the environment only in core/config (see ResolveEditor, DefaultPath)
+      analyze-types: true
+  exclusions:
+    rules:
+      - path: core/config/
+        linters: [forbidigo]
+      # Tests put a fake ssh on PATH and point sockets at a temporary
+      # XDG_RUNTIME_DIR; that's the environment under test, not config.
+      - path: _test\.go
+        linters: [forbidigo]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
