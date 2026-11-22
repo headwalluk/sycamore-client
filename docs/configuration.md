@@ -42,9 +42,13 @@ With only one agent, that one is the default.
 
 **Identity.** The client shells out to your `ssh` and forwards the agent's
 socket, and the agent identifies you by the SSH login user on its host, not
-your local account. If the tunnel and socket are fine but the connection is
-refused, that user can't open the socket (usually: it isn't in the `sycamore`
-group there). `sycamore-tui --probe` shows this as `Connect … FAIL`.
+your local account. That user needs to be in the `sycamore` group there, and
+to be a gateway `posix_login` on one of the agent's contacts. If not,
+`sycamore-tui --probe` shows `Connect … FAIL`.
+
+`ssh` runs in batch mode, so it never prompts: log in with a key (one with a
+passphrase loaded into `ssh-agent`), and accept a new host key with plain
+`ssh` first.
 
 ## `[ui]`
 
@@ -85,8 +89,9 @@ then `/connect` again (or pick the agent again in the GUI).
 
 ## Files outside the config
 
-- Tunnel sockets: `$XDG_RUNTIME_DIR` (else the system temporary directory), one
-  pair per connection, removed when it closes. Each name carries the client's
+- Tunnel sockets: `$XDG_RUNTIME_DIR`, else a private `sycamore-<uid>`
+  directory (mode `0700`) in the system temporary directory, one pair per
+  connection, removed when it closes. Each name carries the client's
   process id; at start-up, a client stops any tunnel whose client has gone.
 - Agent avatars (GUI): `~/.cache/sycamore-client/avatars/`, one file per image,
   named by its SHA-256.

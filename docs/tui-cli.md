@@ -2,17 +2,23 @@
 
 ```
 sycamore-tui [flags]
+sycamore-tui [flags] <socket-path>
 ```
 
 With no flags it opens the `default` agent from the
-[config file](./configuration.md). Flags take one dash or two.
+[config file](./configuration.md). Flags take one dash or two, and go before
+a socket path.
+
+On the agent's own host, `sycamore-tui /var/sycamore/my-agent.sock` (the same
+as `--socket`) connects straight to the socket as the local user, who needs
+access to it (usually the `sycamore` group). The agent shows as `local`.
 
 | Flag | Does |
 | --- | --- |
 | `--instance <name>` | Open that agent instead of the default. |
 | `--config <path>` | Read that config file instead of the default one. |
-| `--socket <path>` | Connect straight to a local socket: no SSH, and no config needed (one is still read, if present, so `/connect` works). |
-| `--probe` | Test the connection in three stages (SSH tunnel, socket, connect), then exit; non-zero if a stage fails. |
+| `--socket <path>` | Connect straight to a local socket: no SSH, and no config needed (one is still read, if present, so `/connect` and `[ui]` apply). Can't be combined with `--instance` or `--probe`. |
+| `--probe` | Test the connection in three stages (SSH tunnel, socket, connect), then exit; non-zero if a stage fails. Configured instances only. |
 | `--init` | Write a commented starter config and exit. Won't overwrite one. |
 | `--version` | Print the version and exit. |
 

@@ -30,7 +30,7 @@ const (
 func main() {
 	var (
 		instance    = flag.String("instance", "", "named instance from the config file (defaults to the config's `default`)")
-		socket      = flag.String("socket", "", "connect directly to a local socket path, bypassing SSH and the config file")
+		socket      = flag.String("socket", "", "connect directly to a local socket path, bypassing SSH (also accepted as a bare argument)")
 		cfgPath     = flag.String("config", "", "config file path (default: $XDG_CONFIG_HOME/sycamore-client/config.toml)")
 		probe       = flag.Bool("probe", false, "run the staged connection test against the instance and exit")
 		doInit      = flag.Bool("init", false, "write an example config file and exit")
@@ -52,27 +52,34 @@ func main() {
 		return
 	}
 
+	socketPath, argsErr := directSocket(*socket, *instance, *probe, flag.Args())
+	if argsErr != nil {
+		fatalf("%v\n  Run `sycamore-tui --help` for usage.", argsErr)
+	}
+
 	sweepStaleTunnels()
 
 	// A direct local socket bypasses both the config file and the
 	// tunnel — handy for a daemon sharing this host.
-	if *socket != "" {
-		ctx, cancel := context.WithTimeout(context.Background(), directConnectTimeout)
-		defer cancel()
-		client, err := core.Connect(ctx, *socket)
-		if err != nil {
-			fatalf("%v", err)
-		}
+	if socketPath != "" {
 		// No config file is required for a direct socket, but load one so
-		// /connect <name> still works after this start. A missing one just
-		// leaves /connect unavailable; a broken one says so first.
+		// /connect <name> and [ui] still apply. A missing one leaves the
+		// defaults; a broken one says so first.
 		cfg, cfgErr := loadConfig(*cfgPath)
 		if cfgErr != nil && !errors.Is(cfgErr, os.ErrNotExist) {
 			fmt.Fprintf(os.Stderr, "sycamore-tui: ignoring the config file (/connect won't be available): %v\n", cfgErr)
 		}
+		mdStyle, mouseCapture := uiSettings(cfg)
+
+		ctx, cancel := context.WithTimeout(context.Background(), directConnectTimeout)
+		defer cancel()
+		client, err := core.Connect(ctx, socketPath)
+		if err != nil {
+			fatalf("%v", err)
+		}
 		pool := newPool(cfg)
-		pool.Add(socketAgentName, core.SocketDialer(*socket))
-		runProgram(pool, socketAgentName, client, resolveStyle(config.DefaultMarkdownStyle), config.DefaultMouseCapture, cfg)
+		pool.Add(socketAgentName, core.SocketDialer(socketPath))
+		runProgram(pool, socketAgentName, client, mdStyle, mouseCapture, cfg)
 		return
 	}
 
@@ -93,8 +100,44 @@ func main() {
 	runProgram(newPool(cfg), inst.Name, ic, mdStyle, mouseCapture, cfg)
 }
 
-// socketAgentName is the agent name for a --socket connection.
+// socketAgentName is the agent name for a direct socket connection.
 const socketAgentName = "local"
+
+// directSocket returns the socket path for a direct connection, from --socket
+// or a lone positional argument, or "" to connect through the config file. It
+// reports every conflicting argument at once.
+func directSocket(socketFlag, instanceFlag string, probe bool, args []string) (string, error) {
+	var problems []error
+	path := socketFlag
+	switch {
+	case len(args) > 1:
+		problems = append(problems, fmt.Errorf("expected at most one socket path, got %d arguments (flags go before the path): %s",
+			len(args), strings.Join(args, " ")))
+	case len(args) == 1 && socketFlag != "":
+		problems = append(problems, errors.New("give the socket path once, as --socket or as an argument"))
+	case len(args) == 1:
+		path = args[0]
+	default:
+		// No positional arguments.
+	}
+	if path != "" && instanceFlag != "" {
+		problems = append(problems, errors.New("--instance can't be combined with a socket path"))
+	}
+	if path != "" && probe {
+		problems = append(problems, errors.New("--probe tests a configured instance; it can't be combined with a socket path"))
+	}
+	return path, errors.Join(problems...)
+}
+
+// uiSettings returns the validated Markdown style and initial mouse-capture
+// state from the config's [ui] table, or the defaults when cfg is nil.
+func uiSettings(cfg *config.File) (string, bool) {
+	if cfg == nil {
+		return resolveStyle(config.DefaultMarkdownStyle), config.DefaultMouseCapture
+	}
+	// MouseCapture is normalised to non-nil by the loader.
+	return resolveStyle(cfg.UI.MarkdownStyle), *cfg.UI.MouseCapture
+}
 
 // newPool builds the connection pool with every configured instance
 // registered, using the config's idle timeout (the default without one).
@@ -196,9 +239,10 @@ func resolveInstance(cfgPath, name string) (config.Instance, string, bool, *conf
 	if err != nil {
 		fatalf("%v", err)
 	}
-	// MouseCapture is normalised to non-nil by the loader. f is returned so
-	// the model can resolve other instances at runtime for /connect.
-	return inst, resolveStyle(file.UI.MarkdownStyle), *file.UI.MouseCapture, file
+	// file is returned so the model can resolve other instances at runtime
+	// for /connect.
+	mdStyle, mouseCapture := uiSettings(file)
+	return inst, mdStyle, mouseCapture, file
 }
 
 func loadConfig(cfgPath string) (*config.File, error) {
@@ -280,7 +324,7 @@ func fatalf(format string, args ...any) {
 func usage() {
 	var help strings.Builder
 	help.WriteString("sycamore-tui — terminal client for the Sycamore agent.\n\n")
-	help.WriteString("Usage:\n  sycamore-tui [flags]\n\nFlags:\n")
+	help.WriteString("Usage:\n  sycamore-tui [flags]\n  sycamore-tui [flags] <socket-path>   (same as --socket <socket-path>)\n\nFlags:\n")
 	flag.VisitAll(func(option *flag.Flag) {
 		fmt.Fprintf(&help, "  --%-10s %s\n", option.Name, option.Usage)
 	})

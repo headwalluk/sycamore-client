@@ -6,6 +6,28 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-22
+
+The TUI's direct connection to an agent on the same host, and an install
+runbook. **The direct (no-SSH) socket connection is built and unit-tested, but
+not yet validated against a live agent.** Connections over SSH are unchanged.
+
+### Added
+
+- **`sycamore-tui <socket-path>`** is shorthand for `--socket <socket-path>`,
+  for an agent on the same host.
+- **`docs/install.md`**: a runbook from `git clone` to a connected TUI, over
+  SSH or on the agent's host.
+
+### Fixed
+
+- **The TUI no longer ignores stray arguments.** A positional argument used
+  to be dropped silently, leaving the TUI on the `default` agent. More than
+  one, a path given both ways, or a socket path with `--instance` or `--probe`
+  is now an error listing every problem.
+- **`--socket` sessions apply the config's `[ui]` settings**
+  (`markdown_style`, `mouse_capture`) instead of the defaults.
+
 ## [1.0.0] - 2026-11-19
 
 The first stable release, and the first from the public repository: the TUI

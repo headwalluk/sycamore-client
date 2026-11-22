@@ -8,10 +8,14 @@ Clients for the [Sycamore](https://github.com/headwalluk/sycamore) AI agent. The
 
 Both connect to agents over SSH: each agent's chat socket is forwarded from its
 host, and the agent knows you by the SSH user you log in as. There are no app
-passwords. Both hold several agents at once, each connected in the background,
-with conversation history, switching, live tool progress and Markdown replies.
+passwords. On the agent's own host, the TUI can also open the socket directly.
+Both hold several agents at once, each connected in the background, with
+conversation history, switching, live tool progress and Markdown replies.
 
 ## Use
+
+[`docs/install.md`](./docs/install.md) goes from `git clone` to a connected
+TUI. Once it's installed:
 
 ```sh
 sycamore-tui --init     # write a starter config to ~/.config/sycamore-client/config.toml
@@ -19,6 +23,7 @@ sycamore-tui --probe    # test the connection layer by layer (add --instance <na
 sycamore-tui            # connect and chat
 ```
 
+- [`docs/install.md`](./docs/install.md): build, install and connect the TUI.
 - [`docs/configuration.md`](./docs/configuration.md): the config file, which
   both clients read.
 - [`docs/tui-cli.md`](./docs/tui-cli.md): the TUI's flags, commands and keys.
@@ -26,17 +31,12 @@ sycamore-tui            # connect and chat
 The GUI has no flags. It reads the same config and opens the default agent (or
 the only one, if there's just one).
 
-If `--probe` fails, the failing line says where to look:
-
-| Fails at | Usually means |
-| --- | --- |
-| `SSH tunnel` | Can't reach or log in to the host: check the host name, the network, and that plain `ssh` works. |
-| `Socket` | Logged in, but there's no socket at `socket =`: check the path, and that the agent is running. |
-| `Connect` | The socket is there but won't open: the SSH user needs access to it on the agent's host (usually the `sycamore` group). |
+If `--probe` fails, [`docs/install.md`](./docs/install.md#4-connect-over-ssh)
+says what each failing stage usually means.
 
 ## Build
 
-A Go workspace (`go.work`, Go 1.24) of three modules: `core/` (the shared
+A Go workspace (`go.work`, Go 1.26) of three modules: `core/` (the shared
 library), `tui/` and `gui/`. There's no module at the root, so `./...` doesn't
 resolve there: name the modules (`./core/... ./tui/... ./gui/...`), or use the
 Makefile.
@@ -52,7 +52,8 @@ make help         # every target
 
 Tools, beyond Go:
 
-- **GUI:** the Wails CLI (`go install github.com/wailsapp/wails/v2/cmd/wails@latest`),
+- **GUI:** the Wails CLI at the version in `gui/go.mod`
+  (`go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0`),
   Node and npm, and `libgtk-3-dev` plus `libwebkit2gtk-4.1-dev`. Builds pass
   `-tags webkit2_41` (the Makefile does). `wails doctor` reporting
   `libwebkit: Not Found` is a false alarm: it looks for the 4.0 package.
